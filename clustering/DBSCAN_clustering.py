@@ -48,13 +48,3 @@ def get_pc_DBSCAN(point_cloud, show_pc_dbscanned = False):
     return pc_dbscanned
 
 
-
-if __name__ == "__main__":
-    pck6 = pc.load_point_cloud('temp_pc\conferenceRoom_1_6mean_1imagesUsed_2022-11-29-11-54_point_cloud.ply')
-    name = 'temp_pc/'+'DBSCANconferenceRoom_1_6mean_1imagesUsed_2022-11-29-11-54_point_cloud.ply'
-
-    # pc.show_point_cloud(pck6)
-    pckd = get_pc_DBSCAN(pck6, show_pc_dbscanned=True)
-    pc.save_point_cloud(pckd, name)
-    pck6_dbscaned = pc.load_point_cloud('temp_pc\DBSCANconferenceRoom_1_6mean_1imagesUsed_2022-11-29-11-54_point_cloud.ply')
-    pc.show_point_cloud([pck6_dbscaned])
