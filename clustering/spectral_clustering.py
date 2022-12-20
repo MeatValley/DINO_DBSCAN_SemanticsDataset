@@ -35,16 +35,8 @@ def get_spectral_clustering(dictionary):
         mapa[n] = key
         d = get_dictionary_mean(dictionary[key])
 
-        print(d.shape)
-        print(d)
         ls.append(d)
 
-
-    #mapa = {0:115157, 1:115158, ...}
-    #ls is a list of 384features
-    #normalize each feature
-    #vary beta
-    #w = 1e-6
 
     ls = np.array(ls, dtype=object)
 
@@ -69,11 +61,4 @@ def get_spectral_clustering(dictionary):
         delta_prev = delta_next #but is fixed here
         v_prev = v_next
 
-    print('v-next ----------------')
-    print(v_next.shape)
-
     return mapa, v_next
-
-if __name__ == "__main__": 
-    dictionary = 0
-    get_spectral_clustering(dictionary)
