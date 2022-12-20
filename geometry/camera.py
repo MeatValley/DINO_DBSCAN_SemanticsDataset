@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 from functools import lru_cache
 import numpy as np
 import torch.nn as nn
-from geometry.camera_utils import scale_intrinsics, crop_intrinsics, rotation_matrix_Euler_angles
+from geometry.camera_utils import scale_intrinsics, crop_intrinsics, angles_to_rotation_matrix
 from geometry.pose import Pose
 
-
+import torch
 # from geometry.camera_utils import scale_intrinsics, crop_intrinsics
 import math
 
@@ -41,7 +41,44 @@ class Camera(nn.Module):
         """Batch size of the camera intrinsics"""
         return len(self.K)
     
+    def project_for_bb(self, points_coordinates):
+        """
+        Projects 3D points onto the image plane, but with some extra weigh to keep points in the right position
+
+        Parameters
+        ----------
+        point_coordinates : torch.Tensor [N,3]
+            3D points to be projected
+
+        Returns
+        -------
+        points : torch.Tensor [N,2]
+            2D projected points that are within the image boundaries
+        """
+        # print("self.Tcw: ", self.Tcw)
+
+        N, C = points_coordinates.shape
+
+        homo_ones = np.ones((N,1))
+        points_homogeneous_coordinates = np.concatenate([points_coordinates, homo_ones], axis=1) #[xw yw zw 1].T
+        pixels_coordinates = (self.K @ (( np.linalg.inv(self.Tcw)@points_homogeneous_coordinates.T))).T #T stands for Tranposal #############
+
+        X = pixels_coordinates[:, 0] #1st colum
+        Y = pixels_coordinates[:, 1]
+        Z = pixels_coordinates[:, 2]
+
+        #getting pixels normalized
+        Xnorm = (X/Z) / self.W
+        Ynorm = (Y/Z) / self.H
+
+        # Xmask = ((Xnorm >= 4) + (Xnorm < 0))
+        # Xnorm[Xmask] = -1
+        # Ymask = ((Ynorm >= 4) + (Ynorm < 0))
+        # Ynorm[Ymask] = -1
+        return np.stack([Xnorm, Ynorm, Z], axis=-1).reshape(N, 3) # Return pixel coordinates
+    
     def project(self, points_coordinates):
+        # print('[in cam.project...]')
         """
         Projects 3D points onto the image plane
 
@@ -58,18 +95,21 @@ class Camera(nn.Module):
         # print("self.Tcw: ", self.Tcw)
 
         N, C = points_coordinates.shape
-        homo_ones = np.ones((N,1))
-        points_homogeneous_coordinates = np.concatenate([points_coordinates, homo_ones], axis=1) #[xw yw zw 1].T
-        pixels_coordinates = (self.K @ (( np.linalg.inv(self.Tcw)@points_homogeneous_coordinates.T))).T #T stands for Tranposal #############
 
-        X = pixels_coordinates[:, 0] #1st colum
-        Y = pixels_coordinates[:, 1]
-        Z = pixels_coordinates[:, 2]
+        homo_ones = np.ones((N,1))
+        
+        # Project 3D points onto the camera image plane
+
+        points_homogeneous_coordinates = np.concatenate([points_coordinates, homo_ones], axis=1) #[xw yw zw 1].T
+        pixels_coordinates = (self.K @ (( np.linalg.inv(self.Tcw)@points_homogeneous_coordinates.T))).T #T stands for Tranposal 
+
+        X = pixels_coordinates[:, 0]  #1st colum
+        Y = pixels_coordinates[:, 1] 
+        Z = pixels_coordinates[:, 2] 
 
         #getting pixels normalized
         Xnorm = (X/Z) / self.W
         Ynorm = (Y/Z) / self.H
-
         Xmask = ((Xnorm >= 1) + (Xnorm < 0))
         Xnorm[Xmask] = -1
         Ymask = ((Ynorm >= 1) + (Ynorm < 0))
@@ -178,7 +218,7 @@ class Camera(nn.Module):
 
         return Xc[0:3, :].T
 
-    def project_on_image(self, X_pos, X_color, depth_map=None, eps=0.08, corres=False):
+    def project_on_image(self, X_pos, X_color, depth_map=None, eps=0.03, corres=False):
         """you pick the coord(x_w, y_w, z_w) of each pixel that became a point and them see if it is in the image"""
         proj = self.project(X_pos) #return the 2d pixel whose point is in the img 
         
@@ -187,25 +227,53 @@ class Camera(nn.Module):
         # create a 'zero img' 
         pc_im_correspondances = {}
         Z_depth = math.inf  #"infinite"
-        
-        
+
         for i in range(len(X_pos)): #2nd for each point in the point cloud of scanet (#1st use could be for each pixels)
             x, y = int((proj[i,1]) * self.H), int((proj[i,0]) * self.W) #'Desnormalizing'
             Z = proj[i, 2]
+            
 
             if depth_map is not None:
-                Z_depth = depth_map[x, y, 0] #is Z depth
+                Z_depth = depth_map[x, y, 0] 
 
-
-            if proj[i,0] >=0 and proj[i,1] >= 0 and Z<Z_depth+eps and Z>=0:
+            # if Z<0:
+            if proj[i,0] >=0 and proj[i,1] >= 0 and Z>=0 and Z<Z_depth+eps:
+                # print('debug3')
+            # if proj[i,0]<0:# and Z<0 and proj[i,1]>=0 and (-1)*Z<Z_depth+eps: #not with this filters #and Z<Z_depth+eps
                 image[x, y, :] = X_color[i]
                 if corres:
-                    pc_im_correspondances[i] = np.array([x, y])
+                    pc_im_correspondances[i] = np.array([x, y]) ######################################aqui tem q ter algum erro pra os q da ruim
                     image[x, y, :] = X_color[i]/255
                     # print('pc_im_correspondace = ', pc_im_correspondances[i])
+        
+        # print('[returning image, and pc_correspondences...]')
         if corres:
             return image, pc_im_correspondances
+        
+        
         return image
 
+    def get_boolean_vector(self, points, depth_map, eps = 0.08):
+        """you pick the coord(x_w, y_w, z_w) of each pixel that became a point and them see if it is in the image"""
+        proj = self.project(points) #return the 2d pixel whose point is in the img 
+
+        b = np.zeros((len(points)))
+        pc_im_correspondances = {}
+
+        for i in range(len(points)): #2nd for each point in the point cloud of scanet (#1st use could be for each pixels)
+            x, y = int((proj[i,1]) * self.H), int((proj[i,0]) * self.W) #'Desnormalizing'
+            Z = proj[i, 2]
+        
+            Z_depth = depth_map[x, y, 0] 
 
 
+            if proj[i,0] >=0 and proj[i,1] >= 0 and Z>=0 and Z<Z_depth+eps:
+                b[i] = 1
+                pc_im_correspondances[i] = np.array([x, y]) ######################################aqui tem q ter algum erro pra os q da ruim
+                # print('pc_im_correspondace = ', pc_im_correspondances[i])
+        
+        # # print('[returning image, and pc_correspondences...]')
+
+        return b, pc_im_correspondances
+        
+  
