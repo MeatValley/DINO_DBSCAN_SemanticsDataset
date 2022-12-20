@@ -18,7 +18,7 @@ def test_with_Kmean(features, points, config, range_for_K = 7, save_pc=False, in
     ----------
     Parameters
     features: is the information we use to cluster
-    points:
+    points: the points in the point cloud
     config: the file
     
     output: None
@@ -26,7 +26,7 @@ def test_with_Kmean(features, points, config, range_for_K = 7, save_pc=False, in
     """
 
     print('[Now create the clustering with Kmeans...]')
-    # print(image)
+
     for i in range(5, range_for_K):
         labels = KMeans(n_clusters=i).fit(features).labels_
         #labels for points in the same cluster
@@ -40,11 +40,11 @@ def test_with_Kmean(features, points, config, range_for_K = 7, save_pc=False, in
 
 
 def get_Kmeans_labels(K, eigenvector):
+    
     print('[Now create the clustering with Kmeans...]')
     r_eig = eigenvector.reshape(-1,1)
     labels = KMeans(n_clusters=K).fit(r_eig).labels_
-        #eigenvector is 1D, should be 2d?    
-    print(labels)
+
     return labels
 
 
