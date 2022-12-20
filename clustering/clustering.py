@@ -2,15 +2,18 @@ from json import load
 import numpy as np
 import sys
 import os
+import open3d as o3d
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
+from myutils.image_with_bb import get_bounding_boxed_image
 import myutils.point_cloud as pc
+# import myutils.boundingboxes as bb
 from sklearn.cluster import KMeans
 
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import StandardScaler
 
-def test_with_Kmean(features, points, config, range_for_K = 7, save_pc=False, index = 0):
+def test_with_Kmean(features, points, config, range_for_K = 7, save_pc=False, index = 0, show_image_bouningbox = True, image=None):
     """Testing clustering the points with Kmeans_alg from sklearn
     ----------
     Parameters
@@ -23,39 +26,27 @@ def test_with_Kmean(features, points, config, range_for_K = 7, save_pc=False, in
     """
 
     print('[Now create the clustering with Kmeans...]')
-    for i in range(2, range_for_K):
+    # print(image)
+    for i in range(5, range_for_K):
         labels = KMeans(n_clusters=i).fit(features).labels_
         #labels for points in the same cluster
 
-        # print(labels)
-            
-        pc.show_point_clouds_with_labels(points, list(labels))
+        pc_kmeans = pc.get_point_clouds_with_labels(points, list(labels))
+        pc.show_point_cloud(pc_kmeans)
         if save_pc: pc.save_point_cloud_with_labels((255*points).astype(np.int32), list(labels), config, i, index)
-        # print('Clustering')
+        if show_image_bouningbox:
+            pc_kmeans = pc.reduce_point_cloud(pc_kmeans, max_fraction=0.8)
+            get_bounding_boxed_image(image, pc_kmeans)
 
-def test_with_DBSCAN(path):
-    print('[running DBSCAN receiving a path...]')
-    point_cloud_loaded = pc.load_point_cloud(path)
-    pc.show_point_cloud(point_cloud_loaded)
-    points = point_cloud_loaded.points
-    points = np.array(points)
-    clustering = DBSCAN(eps=10, min_samples=30).fit(points)
-    labels = clustering.labels_
-    n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
-    print('number of clusters ', n_clusters_)
-    ret_pc = pc.show_point_clouds_with_labels(points, list(labels), random_colors=True)
-    return ret_pc
 
-def test_with_DBSCAN_by_pc(point_cloud):
-    print('[running DBSCAN receiving a point cloud...]')
+def get_Kmeans_labels(K, eigenvector):
+    print('[Now create the clustering with Kmeans...]')
+    r_eig = eigenvector.reshape(-1,1)
+    labels = KMeans(n_clusters=K).fit(r_eig).labels_
+        #eigenvector is 1D, should be 2d?    
+    print(labels)
+    return labels
 
-    points = point_cloud.points
-    points = np.array(points)
-    clustering = DBSCAN(eps=10, min_samples=30).fit(points)
-    labels = clustering.labels_
-    n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
-    print('number of clusters ', n_clusters_)
-    ret_pc = pc.show_point_clouds_with_labels(points, list(labels), random_colors=True)
-    return ret_pc
 
-# print('x')
+
+   
