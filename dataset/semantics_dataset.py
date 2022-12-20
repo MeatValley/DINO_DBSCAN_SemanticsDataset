@@ -54,8 +54,8 @@ class SemanticsDataset(Dataset):
         npy_name = npy_name[0]+'_'+ aux+'_not_aligned.npy'
         
         # print(npy_name)
-        # npy_path = os.path.join(root_dir, npy_name)
-        npy_path = 'database\S3DIS_processed_non_aligned\Area_1\coords\conferenceRoom_1.npy' ####################
+        npy_path = os.path.join(root_dir, npy_name)
+        
         # print(npy_path)
 
         self.data_transform = transforms.Compose(
